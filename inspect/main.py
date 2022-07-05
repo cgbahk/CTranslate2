@@ -12,6 +12,7 @@ from tqdm import tqdm
 import random
 import GPUtil
 from threading import Thread
+import logging
 
 BATCHES_INFO_PATH = Path("/tmp/batches_info.yml")
 GPU_DEVICE = 0
@@ -149,22 +150,37 @@ class TranslateRunner:
 
         monitor.start()
         response["unix_time_in_second_begin"] = time()
-        for src_batch in src_batches:
-            results = translator.translate_batch(src_batch, **ct2_translate_option)
+
+        try:
+            for src_batch in src_batches:
+                results = translator.translate_batch(src_batch, **ct2_translate_option)
+        except Exception as err:
+            logging.error(err)
+
+            if not monitor.stopped:
+                monitor.stop()
+
+            response["status"] = "fail"
+
         monitor.stop()
 
+        if "status" not in response:
+            response["status"] = "success"
+
         hypotheses = []
-        for result in results:
-            # This only holds for `num_hypotheses == 1`
-            # TODO Support multi hypotheses case
-            assert len(result.hypotheses) == 1
-            hyp = result.hypotheses[0]
 
-            # Here mimics fairseq behavior
-            # Ref: https://github.com/pytorch/fairseq/blob/b5a039c292/fairseq/data/encoders/sentencepiece_bpe.py#L54  # noqa: E501
-            detokenized_hyp = "".join(hyp).replace(" ", "").replace("\u2581", " ").strip()
+        if response["status"] == "success":
+            for result in results:
+                # This only holds for `num_hypotheses == 1`
+                # TODO Support multi hypotheses case
+                assert len(result.hypotheses) == 1
+                hyp = result.hypotheses[0]
 
-            hypotheses.append(detokenized_hyp)
+                # Here mimics fairseq behavior
+                # Ref: https://github.com/pytorch/fairseq/blob/b5a039c292/fairseq/data/encoders/sentencepiece_bpe.py#L54  # noqa: E501
+                detokenized_hyp = "".join(hyp).replace(" ", "").replace("\u2581", " ").strip()
+
+                hypotheses.append(detokenized_hyp)
 
         response["unix_time_in_second_end"] = time()
         response["ct2_version"] = ct2.__version__
