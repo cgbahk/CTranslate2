@@ -10,7 +10,6 @@ from time import time, sleep
 import argparse
 from tqdm import tqdm
 import random
-import re
 import GPUtil
 from threading import Thread
 
@@ -18,20 +17,23 @@ BATCHES_INFO_PATH = Path("/tmp/batches_info.yml")
 GPU_DEVICE = 0
 DELAY_SEC = 0.1  # second
 
-SOURCE_SENTENCE_GENERATOR = {}
+SOURCE_BATCH_GENERATOR = {}
 
 
-def register_src_sent_gen(source_type):
+def register_src_batach_gen(source_type):
+
     def decorator(func):
+
         def wrapper(option):
             return func(option)
 
-        SOURCE_SENTENCE_GENERATOR[source_type] = wrapper
+        SOURCE_BATCH_GENERATOR[source_type] = wrapper
         return wrapper
+
     return decorator
 
 
-@register_src_sent_gen("from_corpus")
+@register_src_batach_gen("from_corpus")
 def generate_from_corpus(option):
     corpus_path = Path(option["corpus_path"])
     assert corpus_path.is_file()
@@ -40,9 +42,27 @@ def generate_from_corpus(option):
         all_src = corpus_file.read().strip().split("\n")
 
     if option["shuffle"]:
-        return random.sample(all_src, option["sample"])
+        sents = random.sample(all_src, option["sample"])
     else:
-        return all_src[:option["sample"]]
+        sents = all_src[:option["sample"]]
+
+    assert sents
+
+    spm_model_path = Path(option["spm_model_path"])
+    assert spm_model_path.is_file()
+
+    processor = spm.SentencePieceProcessor(str(spm_model_path))
+
+    batch = []
+    for sentence in sents:
+        # Here mimics fairseq behavior
+        # Ref: https://github.com/pytorch/fairseq/blob/b5a039c292/fairseq/data/encoders/sentencepiece_bpe.py#L47-L52  # noqa: E501
+        batch.append(processor.Encode(sentence, out_type=str))
+
+    return batch
+
+
+# TODO @register_src_batach_gen("from_batches_info")
 
 
 def get_memory_MiB():
@@ -77,28 +97,20 @@ class MemFootprintMonitor(Thread):
         return self._max_mem_in_MiB
 
 
-class SentenceTranslator:
+# TODO Make as function, to test different `ct2_translator_option`
+class TranslateRunner:
 
     def __init__(self, config):
-        spm_model_path = Path(config["spm_model_path"])
-        assert spm_model_path.is_file()
+        self._ct2_translator_option = config["ct2_translator_option"]
 
-        self.mem_base = get_memory_MiB()
-        self._processor = spm.SentencePieceProcessor(str(spm_model_path))
-        self._translator = ct2.Translator(**config["ct2_translator_option"])
-
-    def translate(self, *, src_sents, ct2_translate_option):
+    # TODO Take `ct2_translator_option` as well
+    def translate(self, *, src_batch, ct2_translate_option):
         response = {}
-        response["memory_in_MiB_base"] = self.mem_base  # TODO Where would be correct place?
-        response["memory_in_MiB_model_loaded"] = get_memory_MiB()
-        response["unix_time_in_second_begin"] = time()
+        response["memory_in_MiB_base"] = get_memory_MiB()
 
-        # TODO How to add documentation for this API
-        src_batch = []
-        for src_sent in src_sents:
-            # Here mimics fairseq behavior
-            # Ref: https://github.com/pytorch/fairseq/blob/b5a039c292/fairseq/data/encoders/sentencepiece_bpe.py#L47-L52  # noqa: E501
-            src_batch.append(self._processor.Encode(src_sent, out_type=str))
+        translator = ct2.Translator(**self._ct2_translator_option)
+
+        response["memory_in_MiB_model_loaded"] = get_memory_MiB()
 
         monitor = MemFootprintMonitor()
 
@@ -106,7 +118,8 @@ class SentenceTranslator:
         # TODO Use try-except, or translate failure will hang
 
         monitor.start()
-        results = self._translator.translate_batch(src_batch, **ct2_translate_option)
+        response["unix_time_in_second_begin"] = time()
+        results = translator.translate_batch(src_batch, **ct2_translate_option)
         monitor.stop()
 
         hypotheses = []
@@ -128,6 +141,11 @@ class SentenceTranslator:
         response["ct2_translate_option"] = ct2_translate_option
         response["hypotheses"] = hypotheses
         response["memory_in_MiB_peak"] = monitor.max_memory_in_MiB
+
+        # Release resources
+        # Ref: https://github.com/OpenNMT/CTranslate2/blob/4b250730e9/docs/memory.md
+        del translator
+
         return response
 
 
@@ -150,7 +168,7 @@ def main():
     with open(config_yml_path) as config_yml_file:
         config = yaml.safe_load(config_yml_file)
 
-    translator = SentenceTranslator(config)
+    runner = TranslateRunner(config)
 
     base_dir = Path(args.base)
     assert base_dir.is_dir()
@@ -171,12 +189,12 @@ def main():
         source_type = scenario["source_type"]
         source_type_option = scenario["source_type_option"]
 
-        src_sents = SOURCE_SENTENCE_GENERATOR[source_type](source_type_option)
+        src_batch = SOURCE_BATCH_GENERATOR[source_type](source_type_option)
 
-        assert src_sents
+        assert src_batch
 
-        res = translator.translate(
-            src_sents=src_sents,
+        res = runner.translate(
+            src_batch=src_batch,
             ct2_translate_option=scenario["ct2_translate_option"],
         )
 
