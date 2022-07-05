@@ -40,6 +40,41 @@ def main():
     for col_name in columns:
         df[col_name] = df["mani_path"].apply(func_factory_for_key(col_name))
 
+    df["translation_time_in_second"] = \
+        df["unix_time_in_second_end"] - df["unix_time_in_second_begin"]
+
+    def get_batches_info(row):
+        batches_info_path = row.mani_path.parent / "batches_info.yml"
+        assert batches_info_path.is_file()
+        row["batches_info_path"] = batches_info_path
+
+        with open(batches_info_path) as batches_info_file:
+            batches_info = yaml.safe_load(batches_info_file)
+
+        row["num_batch"] = batches_info["num_batch"]
+
+        first_batch = batches_info["batches"][0]
+        L = first_batch["examples"][0]
+        N = first_batch["num_example"]
+
+        row["first_batch_longest_sentence_length"] = L
+        row["first_batch_num_sentence"] = N
+
+        max_NL = 0
+
+        for batch_info in batches_info["batches"]:
+            batch_N = batch_info["num_example"]
+            batch_L = batch_info["examples"][0]
+
+            if max_NL < batch_N * batch_L:
+                max_NL = batch_N * batch_L
+
+        row["max_NL_over_batch"] = max_NL
+
+        return row
+
+    df = df.apply(get_batches_info, axis=1)
+
     if args.csv_path:
         print(f"Generating csv '{args.csv_path}'")
         df.to_csv(args.csv_path, index=False)
