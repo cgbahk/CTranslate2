@@ -62,7 +62,34 @@ def generate_from_corpus(option):
     return [batch]
 
 
-# TODO @register_src_batach_gen("from_batches_info")
+@register_src_batches_gen("from_batches_info")
+def generate_from_batches_info(option):
+    spm_model_path = Path(option["spm_model_path"])
+    assert spm_model_path.is_file()
+
+    processor = spm.SentencePieceProcessor(str(spm_model_path))
+
+    sample_tokenized_sentence = processor.Encode(option["sample_sentence"], out_type=str)
+
+    batches_info = option["batches_info"]
+
+    batches = []
+
+    assert batches_info["num_batch"] == len(batches_info["batches"])
+
+    for batch_info in batches_info["batches"]:
+        assert batch_info["num_example"] == len(batch_info["examples"])
+
+        batch = []
+        for sentence_length in batch_info["examples"]:
+            assert sentence_length <= len(sample_tokenized_sentence)
+            tokenized_sentence = sample_tokenized_sentence[:sentence_length]
+
+            batch.append(tokenized_sentence)
+
+        batches.append(batch)
+
+    return batches
 
 
 def get_memory_MiB():
@@ -197,6 +224,9 @@ def main():
 
         if source_type == "from_corpus":
             assert len(src_batches) == 1
+
+        if source_type == "from_batches_info":
+            assert scenario["ct2_translate_option"].get("max_batch_size", 0) == 0
 
         assert src_batches
 
