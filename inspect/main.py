@@ -20,7 +20,7 @@ DELAY_SEC = 0.1  # second
 SOURCE_BATCH_GENERATOR = {}
 
 
-def register_src_batach_gen(source_type):
+def register_src_batch_gen(source_type):
 
     def decorator(func):
 
@@ -33,7 +33,7 @@ def register_src_batach_gen(source_type):
     return decorator
 
 
-@register_src_batach_gen("from_corpus")
+@register_src_batch_gen("from_corpus")
 def generate_from_corpus(option):
     corpus_path = Path(option["corpus_path"])
     assert corpus_path.is_file()
