@@ -131,26 +131,6 @@ class SentenceTranslator:
         return response
 
 
-def parse_batches_info_from_raw(lines):
-    ret = {
-        "count": len(lines),
-        "num_examples": [],
-        "max": [],
-        "sum": [],
-    }
-
-    for line in lines:
-        match = re.search("num_examples:([0-9]*),max:([0-9]*),sum:([0-9]*),", line)
-
-        assert match
-
-        ret["num_examples"].append(int(match.group(1)))
-        ret["max"].append(int(match.group(2)))
-        ret["sum"].append(int(match.group(3)))
-
-    return ret
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--translator-config", help="[IN] Path to translator configuration yaml")
