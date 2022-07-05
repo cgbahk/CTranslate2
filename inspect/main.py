@@ -17,23 +17,23 @@ BATCHES_INFO_PATH = Path("/tmp/batches_info.yml")
 GPU_DEVICE = 0
 DELAY_SEC = 0.1  # second
 
-SOURCE_BATCH_GENERATOR = {}
+SOURCE_BATCHES_GENERATOR = {}
 
 
-def register_src_batch_gen(source_type):
+def register_src_batches_gen(source_type):
 
     def decorator(func):
 
         def wrapper(option):
             return func(option)
 
-        SOURCE_BATCH_GENERATOR[source_type] = wrapper
+        SOURCE_BATCHES_GENERATOR[source_type] = wrapper
         return wrapper
 
     return decorator
 
 
-@register_src_batch_gen("from_corpus")
+@register_src_batches_gen("from_corpus")
 def generate_from_corpus(option):
     corpus_path = Path(option["corpus_path"])
     assert corpus_path.is_file()
@@ -59,7 +59,7 @@ def generate_from_corpus(option):
         # Ref: https://github.com/pytorch/fairseq/blob/b5a039c292/fairseq/data/encoders/sentencepiece_bpe.py#L47-L52  # noqa: E501
         batch.append(processor.Encode(sentence, out_type=str))
 
-    return batch
+    return [batch]
 
 
 # TODO @register_src_batach_gen("from_batches_info")
@@ -104,7 +104,7 @@ class TranslateRunner:
         self._ct2_translator_option = config["ct2_translator_option"]
 
     # TODO Take `ct2_translator_option` as well
-    def translate(self, *, src_batch, ct2_translate_option):
+    def translate(self, *, src_batches, ct2_translate_option):
         response = {}
         response["memory_in_MiB_base"] = get_memory_MiB()
 
@@ -114,12 +114,16 @@ class TranslateRunner:
 
         monitor = MemFootprintMonitor()
 
+        # TODO Support multi-batch
+        assert len(src_batches) == 1
+
         # TODO Use `with` pattern
         # TODO Use try-except, or translate failure will hang
 
         monitor.start()
         response["unix_time_in_second_begin"] = time()
-        results = translator.translate_batch(src_batch, **ct2_translate_option)
+        for src_batch in src_batches:
+            results = translator.translate_batch(src_batch, **ct2_translate_option)
         monitor.stop()
 
         hypotheses = []
@@ -189,12 +193,15 @@ def main():
         source_type = scenario["source_type"]
         source_type_option = scenario["source_type_option"]
 
-        src_batch = SOURCE_BATCH_GENERATOR[source_type](source_type_option)
+        src_batches = SOURCE_BATCHES_GENERATOR[source_type](source_type_option)
 
-        assert src_batch
+        if source_type == "from_corpus":
+            assert len(src_batches) == 1
+
+        assert src_batches
 
         res = runner.translate(
-            src_batch=src_batch,
+            src_batches=src_batches,
             ct2_translate_option=scenario["ct2_translate_option"],
         )
 
