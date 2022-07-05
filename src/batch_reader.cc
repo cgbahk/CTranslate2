@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <numeric>
+#include <fstream>
+#include <cassert>
 
 #include "ctranslate2/utils.h"
 
@@ -185,6 +187,28 @@ namespace ctranslate2 {
 
       batches.emplace_back(std::move(batch));
     }
+
+    std::ofstream ofs("/tmp/batches_info.yml");  // TODO Can we remove this hardcoded path?
+
+    ofs << "num_batch: " << batches.size() << std::endl;
+    ofs << "batches:" << std::endl;
+    for (size_t idx_batch = 0; idx_batch < batches.size(); ++idx_batch)
+    {
+      const auto &examples = batches.at(idx_batch).examples;
+      ofs << "  - num_example: " << examples.size() << std::endl;
+      ofs << "    examples: [";
+
+      for (size_t idx_exam = 0; idx_exam < examples.size(); ++idx_exam)
+      {
+        assert(examples.at(idx_exam).num_streams() == 1);
+        size_t length = examples.at(idx_exam).length(0);
+        ofs << length << ", ";
+      }
+      ofs << "]" << std::endl;  // examples: [
+    }
+
+    ofs.flush();
+    ofs.close();
 
     return batches;
   }
