@@ -234,6 +234,17 @@ def main():
     for scenario in progress:
         progress.set_description(scenario["name"])
 
+        scen_workspace_dir = workspace_dir / scenario["name"]
+        scen_workspace_dir.mkdir(parents=True, exist_ok=True)
+
+        manifest_yml_path = scen_workspace_dir / "manifest.yml"
+
+        if manifest_yml_path.is_file():
+            with open(manifest_yml_path) as manifest_yml_file:
+                manifest = yaml.safe_load(manifest_yml_file)
+                if manifest["status"] == "success":
+                    continue
+
         source_type = scenario["source_type"]
         source_type_option = scenario["source_type_option"]
 
@@ -252,9 +263,6 @@ def main():
             ct2_translate_option=scenario["ct2_translate_option"],
         )
 
-        scen_workspace_dir = workspace_dir / scenario["name"]
-        scen_workspace_dir.mkdir(parents=True, exist_ok=True)
-
         assert BATCHES_INFO_PATH.is_file()
         BATCHES_INFO_PATH.rename(scen_workspace_dir / BATCHES_INFO_PATH.name)
 
@@ -263,7 +271,6 @@ def main():
             hypotheses = res.pop("hypotheses")
             hypotheses_file.write("\n".join(hypotheses))
 
-        manifest_yml_path = scen_workspace_dir / "manifest.yml"
         with open(manifest_yml_path, mode="w") as manifest_yml_file:
             yaml.safe_dump(res, manifest_yml_file, sort_keys=False)
 
