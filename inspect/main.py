@@ -229,6 +229,7 @@ def main():
     workspace_dir = base_dir / args.workspace
     workspace_dir.mkdir(parents=True, exist_ok=True)
 
+    random.shuffle(scenarios)
     progress = tqdm(scenarios)
     for scenario in progress:
         progress.set_description(scenario["name"])
