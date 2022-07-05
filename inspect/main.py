@@ -42,10 +42,12 @@ def generate_from_corpus(option):
     with open(corpus_path) as corpus_file:
         all_src = corpus_file.read().strip().split("\n")
 
+    sample_size = option["sample"] if option["sample"] > 0 else len(all_src)
+
     if option["shuffle"]:
-        sents = random.sample(all_src, option["sample"])
+        sents = random.sample(all_src, sample_size)
     else:
-        sents = all_src[:option["sample"]]
+        sents = all_src[:sample_size]
 
     assert sents
 
