@@ -21,6 +21,30 @@ DELAY_SEC = 0.1  # second
 SOURCE_SENTENCE_GENERATOR = {}
 
 
+def register_src_sent_gen(source_type):
+    def decorator(func):
+        def wrapper(option):
+            return func(option)
+
+        SOURCE_SENTENCE_GENERATOR[source_type] = wrapper
+        return wrapper
+    return decorator
+
+
+@register_src_sent_gen("from_corpus")
+def generate_from_corpus(option):
+    corpus_path = Path(option["corpus_path"])
+    assert corpus_path.is_file()
+
+    with open(corpus_path) as corpus_file:
+        all_src = corpus_file.read().strip().split("\n")
+
+    if option["shuffle"]:
+        return random.sample(all_src, option["sample"])
+    else:
+        return all_src[:option["sample"]]
+
+
 def get_memory_MiB():
     return GPUtil.getGPUs()[GPU_DEVICE].memoryUsed
 
@@ -107,19 +131,6 @@ class SentenceTranslator:
         return response
 
 
-def make_sentences(*, corpus_path: str, sample: int, shuffle: bool):
-    corpus_path = Path(corpus_path)
-    assert corpus_path.is_file()
-
-    with open(corpus_path) as corpus_file:
-        all_src = corpus_file.read().strip().split("\n")
-
-    if shuffle:
-        return random.sample(all_src, sample)
-    else:
-        return all_src[:sample]
-
-
 def parse_batches_info_from_raw(lines):
     ret = {
         "count": len(lines),
@@ -177,14 +188,10 @@ def main():
     for scenario in progress:
         progress.set_description(scenario["name"])
 
-        src_sents = None
+        source_type = scenario["source_type"]
+        source_type_option = scenario["source_type_option"]
 
-        if scenario["source_type"] == "from_corpus":
-            src_sents = make_sentences(
-                corpus_path=scenario["from_corpus_option"]["corpus_path"],
-                sample=scenario["from_corpus_option"]["sample"],
-                shuffle=scenario["from_corpus_option"]["shuffle"],
-            )
+        src_sents = SOURCE_SENTENCE_GENERATOR[source_type](source_type_option)
 
         assert src_sents
 
