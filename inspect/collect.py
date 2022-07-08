@@ -59,6 +59,7 @@ def main():
 
         row["first_batch_longest_sentence_length"] = L
         row["first_batch_num_sentence"] = N
+        row["first_batch_num_token"] = sum(first_batch["examples"])
 
         max_NL = 0
 
