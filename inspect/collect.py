@@ -62,6 +62,7 @@ def main():
         row["first_batch_num_token"] = sum(first_batch["examples"])
 
         max_NL = 0
+        max_NL2 = 0
 
         for batch_info in batches_info["batches"]:
             batch_N = batch_info["num_example"]
@@ -70,7 +71,11 @@ def main():
             if max_NL < batch_N * batch_L:
                 max_NL = batch_N * batch_L
 
+            if max_NL2 < batch_N * batch_L**2:
+                max_NL2 = batch_N * batch_L**2
+
         row["max_NL_over_batch"] = max_NL
+        row["max_NL2_over_batch"] = max_NL2
 
         return row
 
