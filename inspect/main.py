@@ -171,12 +171,16 @@ class TranslateRunner:
 
         hypotheses = []
 
+        longest_hyp_token_count = -1
         if response["status"] == "success":
             for result in results:
                 # This only holds for `num_hypotheses == 1`
                 # TODO Support multi hypotheses case
                 assert len(result.hypotheses) == 1
                 hyp = result.hypotheses[0]
+
+                if len(hyp) > longest_hyp_token_count:
+                    longest_hyp_token_count = len(hyp)
 
                 # Here mimics fairseq behavior
                 # Ref: https://github.com/pytorch/fairseq/blob/b5a039c292/fairseq/data/encoders/sentencepiece_bpe.py#L54  # noqa: E501
@@ -189,6 +193,7 @@ class TranslateRunner:
         # TODO Can we get exclusive list of translate option in CT2?
         response["ct2_translate_option"] = ct2_translate_option
         response["hypotheses"] = hypotheses
+        response["longest_hyp_token_count"] = longest_hyp_token_count
         response["memory_in_MiB_peak"] = monitor.max_memory_in_MiB
 
         # Release resources

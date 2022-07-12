@@ -26,6 +26,7 @@ def main():
         "unix_time_in_second_begin",
         "unix_time_in_second_end",
         "status",
+        "longest_hyp_token_count",
     ]
 
     def func_factory_for_key(key):
