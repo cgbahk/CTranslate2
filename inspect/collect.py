@@ -41,6 +41,22 @@ def main():
     for col_name in columns:
         df[col_name] = df["mani_path"].apply(func_factory_for_key(col_name))
 
+    ct2_options = [
+        "beam_size",
+    ]
+
+    def func_factory_for_ct2_option(key):
+
+        def get_val_by_key_for(mani_path):
+            with open(mani_path) as mani_yml_file:
+                mani = yaml.safe_load(mani_yml_file)
+                return mani["ct2_translate_option"][key]
+
+        return get_val_by_key_for
+
+    for opt_name in ct2_options:
+        df[opt_name] = df["mani_path"].apply(func_factory_for_ct2_option(opt_name))
+
     df["translation_time_in_second"] = \
         df["unix_time_in_second_end"] - df["unix_time_in_second_begin"]
 
